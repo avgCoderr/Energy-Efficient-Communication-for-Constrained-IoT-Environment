@@ -25,8 +25,8 @@ n = 100;
 % Number of Dead Nodes in the beggining %
 dead_nodes = 0;
 % Coordinates of the Sink (location is predetermined in this simulation) %
-sinkx = 300;
-sinky = 300;
+sinkx = 990;
+sinky = 990;
 %%% Energy Values %%%
 % Initial Energy of a Node (in Joules) %
 Eo = 0.1; % units in Joules
@@ -35,7 +35,7 @@ Eelec = 50 * 10 ^ (-9); % units in Joules/bit
 ETx = 50 * 10 ^ (-9); % units in Joules/bit
 ERx = 50 * 10 ^ (-9); % units in Joules/bit
 % Transmit Amplifier Types %
-Eamp = 10 * 10 ^ (-12); % units in Joules/bit/m^2 (amount of energy spent by the amplifier to transmit the bits)
+Eamp = 100 * 10 ^ (-12); % units in Joules/bit/m^2 (amount of energy spent by the amplifier to transmit the bits)
 % Data Aggregation Energy %
 EDA = 5 * 10 ^ (-9); % units in Joules/bit
 % Size of data package %
@@ -104,21 +104,6 @@ totalData = 0;
 networkStatus = 1;
 rad = 200;
 
-fid = fopen('node_degree.txt', 'w');
-fclose(fid);
-
-fid = fopen('hops.txt', 'w');
-fclose(fid);
-
-fid = fopen('proximity.txt', 'w');
-fclose(fid);
-
-fid = fopen('debug.txt', 'w');
-fclose(fid);
-
-fid = fopen('diameter.txt', 'w');
-fclose(fid);
-
 %%%%%% Set-Up Phase %%%%%%
 while (operating_nodes > 0 && stop_flag == 0)
 
@@ -168,28 +153,9 @@ while (operating_nodes > 0 && stop_flag == 0)
 
         end
 
-        % printing the degree of each CH %
-        fid = fopen('node_degree.txt', 'a');
-        fprintf(fid, '\nRound %d\n', rounds);
-
-        for i = 1:CHeads
-
-            if CH_list(i).degree < operating_nodes * 0.03
-                fprintf(fid, 'Degree of CH(%d) = %d (node degree below threshold)\n', i, CH_list(i).degree);
-            else
-                fprintf(fid, 'Degree of CH(%d) = %d\n', i, CH_list(i).degree);
-            end
-
-        end
-        fclose(fid);
-
         % calculating HOPS and Proximity %
         CH_list = CH_list_with_HOPS(CH_list, CHeads, rad, rounds);
         Network_Longest_Shortest_Path = calculating_lsp(CH_list, CHeads);
-
-        fid = fopen('diameter.txt', 'a');
-        fprintf(fid, '\nRound = %d, C-Heads = %d, Diamter = %d\n\n', rounds, CHeads, Network_Longest_Shortest_Path);
-        fclose(fid);
 
         %%%%%% Steady-State Phase %%%%%%
         % Energy Dissipation for normal nodes %
@@ -293,56 +259,6 @@ while (operating_nodes > 0 && stop_flag == 0)
     end
 
 end
-
-% Plotting Simulation Results "Operating Nodes per Round" %
-figure(2)
-plot(1:rounds, opNodes(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH RB DEGREE'; 'Operating Nodes per Round'; })
-xlabel 'Rounds';
-ylabel 'Operational Nodes';
-hold on;
-
-figure(3)
-plot(1:rounds, dNodes(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH RB DEGREE'; 'Dead Nodes per Round'; })
-xlabel 'Rounds';
-ylabel 'Dead Nodes';
-hold on;
-
-figure(4)
-plot(1:rounds, cNodes(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH RB DEGREE'; 'Clusters per Round'; })
-xlabel 'Rounds';
-ylabel 'Clusters';
-hold on;
-
-figure(5)
-plot(1:rounds, threshData(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH RB DEGREE'; 'Threshold Data per Round'; })
-xlabel 'Rounds';
-ylabel 'Threshold Data';
-hold on;
-
-figure(6)
-plot(1:flagFirstDead, nrg(1:flagFirstDead), '-b', 'Linewidth', 2');
-title ({'LEACH RB DEGREE'; 'Energy consumed per Transmission'; })
-xlabel 'Transmission';
-ylabel 'Energy ( J )';
-hold on;
-
-figure(7)
-bar(1:networkStatus, networkLiveData(1:networkStatus));
-title ({'LEACH RB DEGREE'; 'Network Status vs Rounds'; })
-xlabel 'Network Status';
-ylabel 'Rounds';
-hold on;
-
-figure(8)
-plot(1:rounds, remainingEnergy(1:rounds), '-b', 'Linewidth', 2');
-title ({'LEACH RB DEGREE'; 'Remaining Energy per Round'; })
-xlabel 'Rounds';
-ylabel 'Remaining Energy';
-hold on;
 
 % sorting nodes based on energy
 function S = sortNodes_energy(S, Ni)
