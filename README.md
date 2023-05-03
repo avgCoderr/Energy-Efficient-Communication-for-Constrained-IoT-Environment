@@ -18,7 +18,7 @@ There are three types of MATLAB files provided in the repository:
 
 * [MATLAB](https://www.mathworks.com/products/matlab.html) - The Software used for Simulation
 
-### About me
+## About me
 Rishabh Barnwal <br/>
 Birla Institute of Technology and Science Pilani, Pilani Campus
 
