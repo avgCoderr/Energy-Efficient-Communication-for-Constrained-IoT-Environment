@@ -198,7 +198,7 @@ while (operating_nodes > 0 && stop_flag == 0)
                         totalEnergy = totalEnergy - ERx;
                         SN(SN(i).chid).Energy = SN(SN(i).chid).Energy - ERx;
 
-                        if SN(SN(i).chid).Energy <= Eo * 0.2 % if cluster heads energy depletes with reception
+                        if SN(SN(i).chid).Energy <= 0 % if cluster heads energy depletes with reception
                             SN(SN(i).chid).condition = 0;
                             SN(SN(i).chid).rop = rounds;
                             dead_nodes = dead_nodes + 1;
@@ -234,7 +234,7 @@ while (operating_nodes > 0 && stop_flag == 0)
                     totalEnergy = totalEnergy - ETx;
                 end
 
-                if SN(i).Energy <= Eo * 0.2 % if cluster heads energy depletes with transmission
+                if SN(i).Energy <= 0 % if cluster heads energy depletes with transmission
                     dead_nodes = dead_nodes + 1;
                     operating_nodes = operating_nodes - 1
                     SN(i).condition = 0;
@@ -386,14 +386,11 @@ totalData = 0;
 networkStatus = 1;
 rad = 200;
 dead_nodes = 0;
-rounds = 0;
 totalEnergy = n * Eo;
 rounds = 0;
-totalEnergy = n * Eo;
 operating_nodes = n;
 transmissions = 0;
 temp_val = 0;
-flagFirstDead = 0;
 stop_flag = 0;
 
 opNodes = [];
@@ -504,7 +501,7 @@ while (operating_nodes > 0 && stop_flag == 0)
 
                 end
 
-                if SN(i).Energy < Eo * 0.2 % if nodes energy depletes with transmission
+                if SN(i).Energy <= 0 % if nodes energy depletes with transmission
                     dead_nodes = dead_nodes + 1;
                     operating_nodes = operating_nodes - 1
                     SN(i).condition = 0;
@@ -526,6 +523,7 @@ while (operating_nodes > 0 && stop_flag == 0)
                     ETx = (Eelec + EDA) * k + Eamp * k * SN(i).dts ^ 2;
                     SN(i).Energy = SN(i).Energy - ETx;
                     energy = energy + ETx;
+                    totalEnergy = totalEnergy - ETx;
 
                 end
 
@@ -560,7 +558,7 @@ while (operating_nodes > 0 && stop_flag == 0)
         nrg(transmissions) = energy;
     end
 
-    if CHeads == 0 || operating_nodes <= 4
+    if CHeads == 0 || operating_nodes < 3
         stop_flag = 1;
         CHeads = 0;
         networkLiveData_2(networkStatus) = rounds;
@@ -2017,9 +2015,7 @@ function [hops, indices] = calculate_hops(CH_list, index, indices, hops, rounds)
         end
 
         if (nextIndex == 0)
-
         else
-
             indices = [indices, nextIndex];
             [hops, indices] = calculate_hops(CH_list, nextIndex, indices, hops, rounds);
             hops = hops + 1;

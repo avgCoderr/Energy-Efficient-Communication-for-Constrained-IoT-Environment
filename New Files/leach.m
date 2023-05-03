@@ -113,40 +113,24 @@ totalData = 0;
 networkStatus = 1;
 rad = 200;
 
-fid = fopen('node_degree.txt', 'w');
-fclose(fid);
-
-fid = fopen('hops.txt', 'w');
-fclose(fid);
-
-fid = fopen('proximity.txt', 'w');
-fclose(fid);
-
-fid = fopen('debug.txt', 'w');
-fclose(fid);
-
-fid = fopen('diameter.txt', 'w');
-fclose(fid);
-
+opNodes = [];
+dNodes = [];
+cNodes = [];
+threshData = [];
+remainingEnergy = [];
+nrg = [];
+flagFirstDead = 0;
+networkLiveData = [];
+abpl = [];
+lsp = [];
 
 %%%%%% Set-Up Phase %%%%%%
 %%%%%%%%%% LEACH %%%%%%%%%
-
-fid = fopen('debug.txt', 'a');
-for i = 1:n
-    fprintf(fid, 'Node %d: x = %d, y = %d\n', i, SN(i).x, SN(i).y);
-end
-fclose(fid);
-
 while (operating_nodes > 0 && stop_flag == 0)
 
     % Displays Current Round %
     rounds = rounds + 1
     remainingEnergy(rounds) = totalEnergy;
-
-    % fid = fopen('debug.txt', 'w');
-    % fprintf(fid, 'Operating Nodes = %d', operating_nodes);
-    % fclose(fid);
 
     % Threshold Value %
     t = (p / (1 - p * (mod(rounds, 1 / p))));
@@ -194,28 +178,14 @@ while (operating_nodes > 0 && stop_flag == 0)
 
     if (CLheads ~= 0)
         % printing the degree of each CH %
-        fid = fopen('node_degree.txt', 'a');
-        fprintf(fid, '\nRound %d\n', rounds);
-
-        for i = 1:CHeads
-
-            if CL(i).degree < operating_nodes * 0.03
-                fprintf(fid, 'Degree of CH(%d) = %d (node degree below threshold)\n', i, CL(i).degree);
-            else
-                fprintf(fid, 'Degree of CH(%d) = %d\n', i, CL(i).degree);
-            end
-
-        end
-
-        fclose(fid);
 
         % calculating HOPS and Proximity %
-        CL = CH_list_with_HOPS(CL, CHeads, rad, rounds);
-        Network_Longest_Shortest_Path = calculating_lsp(CL, CHeads);
+        [CL, ABPL] = CH_list_with_HOPS(CL, CLheads, rad, rounds);
+        Network_Longest_Shortest_Path = calculating_lsp(CL, CLheads);
 
-        fid = fopen('diameter.txt', 'a');
-        fprintf(fid, '\nRound = %d, C-Heads = %d, Diameter = %d\n\n', rounds, CHeads, Network_Longest_Shortest_Path);
-        fclose(fid);
+        abpl(rounds) = ABPL;
+        lsp(rounds) = Network_Longest_Shortest_Path;
+
     end
 
     %%%%%% Steady-State Phase %%%%%%
@@ -289,7 +259,7 @@ while (operating_nodes > 0 && stop_flag == 0)
 
     if operating_nodes < n && temp_val == 0
         temp_val = 1;
-        flagFirstDead = rounds
+        flagFirstDead = rounds;
         networkLiveData(networkStatus) = rounds;
         networkStatus = networkStatus + 1;
     end
@@ -300,11 +270,9 @@ while (operating_nodes > 0 && stop_flag == 0)
         networkStatus = networkStatus + 1;
     end
 
-    transmissions = transmissions + 1;
-
-    if CLheads == 0
-        transmissions = transmissions - 1;
-        networkLiveData(networkStatus) = rounds;
+    if flagFirstDead == 0
+        transmissions = transmissions + 1;
+        nrg(transmissions) = energy;
     end
 
     cnt = 0;
@@ -327,60 +295,75 @@ while (operating_nodes > 0 && stop_flag == 0)
     cNodes(rounds) = CLheads;
     threshData(rounds) = totalData;
 
-    if energy > 0
-        nrg(transmissions) = energy;
-    end
+end
 
+if networkStatus == 1
+    networkStatus = networkStatus + 1;
+    networkLiveData(networkStatus) = rounds;
+    networkStatus = networkStatus + 1;
+    networkLiveData(networkStatus) = rounds;
+elseif networkStatus == 2
+    networkStatus = networkStatus + 1;
+    networkLiveData(networkStatus) = rounds;
+elseif networkStatus == 3
+    networkLiveData(networkStatus) = rounds;
 end
 
 % Plotting Simulation Results "Operating Nodes per Round" %
 figure(2)
-plot(1:rounds, opNodes(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH'; 'Operating Nodes per Round'; })
-xlabel 'Rounds';
-ylabel 'Operational Nodes';
+plot(1:length(opNodes), opNodes(1:length(opNodes)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Number of Operating Nodes per Round'; })
+xlabel '# Rounds';
+ylabel '# Operational Nodes';
 hold on;
 
 figure(3)
-plot(1:rounds, dNodes(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH'; 'Dead Nodes per Round'; })
-xlabel 'Rounds';
-ylabel 'Dead Nodes';
+plot(1:length(dNodes), dNodes(1:length(dNodes)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Number of Dead Nodes per Round'; })
+xlabel '# Rounds';
+ylabel '# Dead Nodes';
 hold on;
 
 figure(4)
-plot(1:rounds, cNodes(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH'; 'Clusters per Round'; })
-xlabel 'Rounds';
-ylabel 'Clusters';
+plot(1:length(cNodes), cNodes(1:length(cNodes)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Number of Clusters per Round'; })
+xlabel '# Rounds';
+ylabel '# Clusters';
 hold on;
 
 figure(5)
-plot(1:rounds, threshData(1:rounds), '-b', 'Linewidth', 2);
-title ({'LEACH'; 'Threshold Data per Round'; })
-xlabel 'Rounds';
-ylabel 'Threshold Data';
+plot(1:length(threshData), threshData(1:length(threshData)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Data Packets Sent to the Sink Node per Round'; })
+xlabel '# Rounds';
+ylabel 'Data Packets Sent to the Sink Node';
 hold on;
 
 figure(6)
-plot(1:flagFirstDead, nrg(1:flagFirstDead), '-b', 'Linewidth', 2');
-title ({'LEACH'; 'Energy consumed per Transmission'; })
-xlabel 'Transmission';
-ylabel 'Energy ( J )';
+plot(1:length(nrg), nrg(1:length(nrg)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Energy Consumtion per Transmission'; })
+xlabel '# Transmission';
+ylabel 'Energy (Joule)';
 hold on;
 
 figure(7)
-bar(1:networkStatus, networkLiveData(1:networkStatus));
-title ({'LEACH'; 'Network Status vs Rounds'; })
-xlabel 'Network Status';
-ylabel 'Rounds';
+area(1:length(remainingEnergy), remainingEnergy(1:length(remainingEnergy)), 'FaceColor', 'r');
+title ({'COMPARISION'; 'Remaining Energy per Round'; })
+xlabel '# Rounds';
+ylabel 'Remaining Energy (Joule)';
 hold on;
 
 figure(8)
-plot(1:rounds, remainingEnergy(1:rounds), '-b', 'Linewidth', 2');
-title ({'LEACH'; 'Remaining Energy per Round'; })
-xlabel 'Rounds';
-ylabel 'Remaining Energy';
+plot(1:length(abpl), abpl(1:length(abpl)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Average Backbone Path Length per Round'; })
+xlabel '# Rounds';
+ylabel 'Average Backbone Path Length';
+hold on;
+
+figure(9)
+plot(1:length(lsp), lsp(1:length(lsp)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Longest Shortest Path Length per Round'; })
+xlabel '# Rounds';
+ylabel 'Longest Shortest Path Length';
 hold on;
 
 function [SN, CL, CLheads] = CH_election(SN, n, t, tleft, p, rounds, sinkx, sinky, CLheads, Eo)

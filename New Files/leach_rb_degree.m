@@ -104,16 +104,24 @@ totalData = 0;
 networkStatus = 1;
 rad = 200;
 
+opNodes = [];
+dNodes = [];
+cNodes = [];
+threshData = [];
+remainingEnergy = [];
+nrg = [];
+flagFirstDead = 0;
+networkLiveData = [];
+abpl = [];
+lsp = [];
+
 %%%%%% Set-Up Phase %%%%%%
+%%%%% PROPOSED WITH DEGREE %%%%
 while (operating_nodes > 0 && stop_flag == 0)
 
     % Displays Current Round %
     rounds = rounds + 1
     remainingEnergy(rounds) = totalEnergy;
-
-    fid = fopen('debug.txt', 'w');
-    fprintf(fid, 'Operating Nodes = %d', operating_nodes);
-    fclose(fid);
 
     % Reseting Previous Amount Of Energy Consumed In the Network on the Previous Round %
     energy = 0;
@@ -153,9 +161,14 @@ while (operating_nodes > 0 && stop_flag == 0)
 
         end
 
+        % printing the degree of each CH %
+
         % calculating HOPS and Proximity %
-        CH_list = CH_list_with_HOPS(CH_list, CHeads, rad, rounds);
+        [CH_list, ABPL] = CH_list_with_HOPS(CH_list, CHeads, rad, rounds);
         Network_Longest_Shortest_Path = calculating_lsp(CH_list, CHeads);
+
+        abpl_1(rounds) = ABPL;
+        lsp_1(rounds) = Network_Longest_Shortest_Path;
 
         %%%%%% Steady-State Phase %%%%%%
         % Energy Dissipation for normal nodes %
@@ -166,13 +179,14 @@ while (operating_nodes > 0 && stop_flag == 0)
 
                 if SN(i).Energy > 0
                     ETx = Eelec * k + Eamp * k * SN(i).dtch ^ 2;
+
                     SN(i).Energy = SN(i).Energy - ETx;
                     energy = energy + ETx;
                     totalEnergy = totalEnergy - ETx;
                     totalData = totalData + k;
 
                     % Dissipation for cluster head during reception
-                    if SN(SN(i).chid).Energy > 0 && SN(SN(i).chid).condition == 1 && SN(SN(i).chid).role == 1
+                    if SN(SN(i).chid).condition == 1 && SN(SN(i).chid).role == 1
                         ERx = (Eelec + EDA) * k;
                         energy = energy + ERx;
                         totalEnergy = totalEnergy - ERx;
@@ -202,13 +216,13 @@ while (operating_nodes > 0 && stop_flag == 0)
         end
 
         % Energy Dissipation for cluster head nodes %
-
         for i = 1:n
 
             if (SN(i).condition == 1) && (SN(i).role == 1)
 
                 if SN(i).Energy > 0
                     ETx = (Eelec + EDA) * k + Eamp * k * SN(i).dts ^ 2;
+
                     SN(i).Energy = SN(i).Energy - ETx;
                     energy = energy + ETx;
                     totalEnergy = totalEnergy - ETx;
@@ -230,23 +244,26 @@ while (operating_nodes > 0 && stop_flag == 0)
     % Obtaining network status %
     if operating_nodes < n && temp_val == 0
         temp_val = 1;
-        flagFirstDead = rounds
-        networkLiveData(networkStatus) = rounds;
+        flagFirstDead = rounds;
+        networkLiveData_1(networkStatus) = rounds;
         networkStatus = networkStatus + 1;
     end
 
     if operating_nodes <= n * 0.5 && temp_val == 1
         temp_val = 2;
-        networkLiveData(networkStatus) = rounds;
+        networkLiveData_1(networkStatus) = rounds;
         networkStatus = networkStatus + 1;
     end
 
-    transmissions = transmissions + 1;
+    if flagFirstDead == 0
+        transmissions = transmissions + 1;
+        nrg(transmissions) = energy;
+    end
 
-    if CHeads == 0 || operating_nodes < 3
-        transmissions = transmissions - 1;
+    if CHeads == 0 || operating_nodes < 5
         stop_flag = 1;
-        networkLiveData(networkStatus) = rounds;
+        CHeads = 0;
+        networkLiveData_1(networkStatus) = rounds;
     end
 
     opNodes(rounds) = operating_nodes;
@@ -254,11 +271,76 @@ while (operating_nodes > 0 && stop_flag == 0)
     cNodes(rounds) = CHeads;
     threshData(rounds) = totalData;
 
-    if energy > 0
-        nrg(transmissions) = energy;
-    end
-
 end
+
+if networkStatus == 1
+    networkStatus = networkStatus + 1;
+    networkLiveData(networkStatus) = rounds;
+    networkStatus = networkStatus + 1;
+    networkLiveData(networkStatus) = rounds;
+elseif networkStatus == 2
+    networkStatus = networkStatus + 1;
+    networkLiveData(networkStatus) = rounds;
+elseif networkStatus == 3
+    networkLiveData(networkStatus) = rounds;
+end
+
+% Plotting Simulation Results "Operating Nodes per Round" %
+figure(2)
+plot(1:length(opNodes), opNodes(1:length(opNodes)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Number of Operating Nodes per Round'; })
+xlabel '# Rounds';
+ylabel '# Operational Nodes';
+hold on;
+
+figure(3)
+plot(1:length(dNodes), dNodes(1:length(dNodes)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Number of Dead Nodes per Round'; })
+xlabel '# Rounds';
+ylabel '# Dead Nodes';
+hold on;
+
+figure(4)
+plot(1:length(cNodes), cNodes(1:length(cNodes)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Number of Clusters per Round'; })
+xlabel '# Rounds';
+ylabel '# Clusters';
+hold on;
+
+figure(5)
+plot(1:length(threshData), threshData(1:length(threshData)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Data Packets Sent to the Sink Node per Round'; })
+xlabel '# Rounds';
+ylabel 'Data Packets Sent to the Sink Node';
+hold on;
+
+figure(6)
+plot(1:length(nrg), nrg(1:length(nrg)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Energy Consumtion per Transmission'; })
+xlabel '# Transmission';
+ylabel 'Energy (Joule)';
+hold on;
+
+figure(7)
+area(1:length(remainingEnergy), remainingEnergy(1:length(remainingEnergy)), 'FaceColor', 'r');
+title ({'COMPARISION'; 'Remaining Energy per Round'; })
+xlabel '# Rounds';
+ylabel 'Remaining Energy (Joule)';
+hold on;
+
+figure(8)
+plot(1:length(abpl), abpl(1:length(abpl)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Average Backbone Path Length per Round'; })
+xlabel '# Rounds';
+ylabel 'Average Backbone Path Length';
+hold on;
+
+figure(9)
+plot(1:length(lsp), lsp(1:length(lsp)), '-r', 'Linewidth', 2);
+title ({'COMPARISION'; 'Longest Shortest Path Length per Round'; })
+xlabel '# Rounds';
+ylabel 'Longest Shortest Path Length';
+hold on;
 
 % sorting nodes based on energy
 function S = sortNodes_energy(S, Ni)

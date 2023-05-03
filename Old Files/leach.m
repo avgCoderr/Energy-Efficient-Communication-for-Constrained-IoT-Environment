@@ -1,6 +1,15 @@
-%Rishabh Barnwal%
-%2020A7PS1677P%
-%2023%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%                          LEACH Protocol                              %
+%                          Part of Thesis:                             %
+%       Energy-Efficient Protocols In Wireless Sensor Networks         %
+%                                                                      %
+% (c) Alexandros Nikolaos Zattas                                       %
+% University of Peloponnese                                            %
+% Department of Informatics and Telecommunications                     %
+% For any related questions or additional information                  %
+% send an e-mail to:                                                   %
+% alexzattas@gmail.com                                                 %
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 close all;
 clear;
 clc;
@@ -25,8 +34,8 @@ n = 100;
 % Number of Dead Nodes in the beggining %
 dead_nodes = 0;
 % Coordinates of the Sink (location is predetermined in this simulation) %
-sinkx = 300;
-sinky = 300;
+sinkx = 990;
+sinky = 990;
 %%% Energy Values %%%
 % Initial Energy of a Node (in Joules) %
 Eo = 0.1; % units in Joules
@@ -88,44 +97,56 @@ for i = 1:n
     SN(i).chid = 0; % node ID of the cluster head which the "i" normal node belongs to
     SN(i).prob = p; % probability with which a node gets to be cluster head
 
-    hold on;
     figure(1)
     plot(x, y, x_max, y_max, SN(i).x, SN(i).y, 'ob', sinkx, sinky, '*r');
     title 'Wireless Sensor Network';
     xlabel 'X-coordinate';
     ylabel 'Y-coordinate';
+    hold on;
 
 end
 
-CLheads = 0;
-CH_list = [];
+CHeads = 0;
+CL = [];
 firstRound = 1;
 totalData = 0;
 networkStatus = 1;
 rad = 200;
 
-opNodes = [];
-dNodes = [];
-cNodes = [];
-threshData = [];
-remainingEnergy = [];
-nrg = [];
-flagFirstDead = 0;
-networkLiveData = [];
-abpl = [];
-lsp = [];
+fid = fopen('node_degree.txt', 'w');
+fclose(fid);
+
+fid = fopen('hops.txt', 'w');
+fclose(fid);
+
+fid = fopen('proximity.txt', 'w');
+fclose(fid);
+
+fid = fopen('debug.txt', 'w');
+fclose(fid);
+
+fid = fopen('diameter.txt', 'w');
+fclose(fid);
+
 
 %%%%%% Set-Up Phase %%%%%%
-%%%%%%%%% LEACH-C %%%%%%%%
+%%%%%%%%%% LEACH %%%%%%%%%
+
+fid = fopen('debug.txt', 'a');
+for i = 1:n
+    fprintf(fid, 'Node %d: x = %d, y = %d\n', i, SN(i).x, SN(i).y);
+end
+fclose(fid);
+
 while (operating_nodes > 0 && stop_flag == 0)
 
     % Displays Current Round %
     rounds = rounds + 1
     remainingEnergy(rounds) = totalEnergy;
 
-    % Reseting Previous Amount Of Cluster Heads In the Network %
-
-    CLheads = 0;
+    % fid = fopen('debug.txt', 'w');
+    % fprintf(fid, 'Operating Nodes = %d', operating_nodes);
+    % fclose(fid);
 
     % Threshold Value %
     t = (p / (1 - p * (mod(rounds, 1 / p))));
@@ -133,23 +154,14 @@ while (operating_nodes > 0 && stop_flag == 0)
     % Re-election Value %
     tleft = mod(rounds, 1 / p);
 
+    % Reseting Previous Amount Of Cluster Heads In the Network %
+    CLheads = 0;
+
     % Reseting Previous Amount Of Energy Consumed In the Network on the Previous Round %
     energy = 0;
-    Ecen = 0;
-
-    % average energy calculation %
-    for i = 1:n
-
-        if (SN(i).condition == 1)
-            Ecen = Ecen + SN(i).Energy;
-        end
-
-    end
-
-    Ecen = Ecen / operating_nodes;
 
     % Cluster Heads Election %
-    [SN, CL, CLheads] = CH_election_centralized(SN, n, t, tleft, p, rounds, sinkx, sinky, CLheads, Eo, Ecen);
+    [SN, CL, CLheads] = CH_election(SN, n, t, tleft, p, rounds, sinkx, sinky, CLheads, Eo);
 
     % Fixing the size of "CL" array %
     CL = CL(1:CLheads);
@@ -180,19 +192,34 @@ while (operating_nodes > 0 && stop_flag == 0)
 
     end
 
-    % calculating only if there are CHs in the network %
     if (CLheads ~= 0)
+        % printing the degree of each CH %
+        fid = fopen('node_degree.txt', 'a');
+        fprintf(fid, '\nRound %d\n', rounds);
+
+        for i = 1:CHeads
+
+            if CL(i).degree < operating_nodes * 0.03
+                fprintf(fid, 'Degree of CH(%d) = %d (node degree below threshold)\n', i, CL(i).degree);
+            else
+                fprintf(fid, 'Degree of CH(%d) = %d\n', i, CL(i).degree);
+            end
+
+        end
+
+        fclose(fid);
 
         % calculating HOPS and Proximity %
-        [CL, ABPL] = CH_list_with_HOPS(CL, CLheads, rad, rounds);
-        Network_Longest_Shortest_Path = calculating_lsp(CL, CLheads);
+        CL = CH_list_with_HOPS(CL, CHeads, rad, rounds);
+        Network_Longest_Shortest_Path = calculating_lsp(CL, CHeads);
 
-        abpl(rounds) = ABPL;
-        lsp(rounds) = Network_Longest_Shortest_Path;
-
+        fid = fopen('diameter.txt', 'a');
+        fprintf(fid, '\nRound = %d, C-Heads = %d, Diameter = %d\n\n', rounds, CHeads, Network_Longest_Shortest_Path);
+        fclose(fid);
     end
 
     %%%%%% Steady-State Phase %%%%%%
+
     % Energy Dissipation for normal nodes %
 
     for i = 1:n
@@ -216,7 +243,7 @@ while (operating_nodes > 0 && stop_flag == 0)
                     if SN(SN(i).chid).Energy <= Eo * 0.2 % if cluster heads energy depletes with reception
                         SN(SN(i).chid).condition = 0;
                         SN(SN(i).chid).rop = rounds;
-                        dead_nodes = dead_nodes +1;
+                        dead_nodes = dead_nodes + 1;
                         operating_nodes = operating_nodes - 1
                     end
 
@@ -262,7 +289,7 @@ while (operating_nodes > 0 && stop_flag == 0)
 
     if operating_nodes < n && temp_val == 0
         temp_val = 1;
-        flagFirstDead = rounds;
+        flagFirstDead = rounds
         networkLiveData(networkStatus) = rounds;
         networkStatus = networkStatus + 1;
     end
@@ -273,9 +300,11 @@ while (operating_nodes > 0 && stop_flag == 0)
         networkStatus = networkStatus + 1;
     end
 
-    if flagFirstDead == 0
-        transmissions = transmissions + 1;
-        nrg(transmissions) = energy;
+    transmissions = transmissions + 1;
+
+    if CLheads == 0
+        transmissions = transmissions - 1;
+        networkLiveData(networkStatus) = rounds;
     end
 
     cnt = 0;
@@ -298,78 +327,63 @@ while (operating_nodes > 0 && stop_flag == 0)
     cNodes(rounds) = CLheads;
     threshData(rounds) = totalData;
 
-end
+    if energy > 0
+        nrg(transmissions) = energy;
+    end
 
-if networkStatus == 1
-    networkStatus = networkStatus + 1;
-    networkLiveData(networkStatus) = rounds;
-    networkStatus = networkStatus + 1;
-    networkLiveData(networkStatus) = rounds;
-elseif networkStatus == 2
-    networkStatus = networkStatus + 1;
-    networkLiveData(networkStatus) = rounds;
-elseif networkStatus == 3
-    networkLiveData(networkStatus) = rounds;
 end
 
 % Plotting Simulation Results "Operating Nodes per Round" %
 figure(2)
-plot(1:length(opNodes), opNodes(1:length(opNodes)), '-r', 'Linewidth', 2);
-title ({'COMPARISION'; 'Number of Operating Nodes per Round'; })
-xlabel '# Rounds';
-ylabel '# Operational Nodes';
+plot(1:rounds, opNodes(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH'; 'Operating Nodes per Round'; })
+xlabel 'Rounds';
+ylabel 'Operational Nodes';
 hold on;
 
 figure(3)
-plot(1:length(dNodes), dNodes(1:length(dNodes)), '-r', 'Linewidth', 2);
-title ({'COMPARISION'; 'Number of Dead Nodes per Round'; })
-xlabel '# Rounds';
-ylabel '# Dead Nodes';
+plot(1:rounds, dNodes(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH'; 'Dead Nodes per Round'; })
+xlabel 'Rounds';
+ylabel 'Dead Nodes';
 hold on;
 
 figure(4)
-plot(1:length(cNodes), cNodes(1:length(cNodes)), '-r', 'Linewidth', 2);
-title ({'COMPARISION'; 'Number of Clusters per Round'; })
-xlabel '# Rounds';
-ylabel '# Clusters';
+plot(1:rounds, cNodes(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH'; 'Clusters per Round'; })
+xlabel 'Rounds';
+ylabel 'Clusters';
 hold on;
 
 figure(5)
-plot(1:length(threshData), threshData(1:length(threshData)), '-r', 'Linewidth', 2);
-title ({'COMPARISION'; 'Data Packets Sent to the Sink Node per Round'; })
-xlabel '# Rounds';
-ylabel 'Data Packets Sent to the Sink Node';
+plot(1:rounds, threshData(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH'; 'Threshold Data per Round'; })
+xlabel 'Rounds';
+ylabel 'Threshold Data';
 hold on;
 
 figure(6)
-plot(1:length(nrg), nrg(1:length(nrg)), '-r', 'Linewidth', 2);
-title ({'COMPARISION'; 'Energy Consumtion per Transmission'; })
-xlabel '# Transmission';
-ylabel 'Energy (Joule)';
+plot(1:flagFirstDead, nrg(1:flagFirstDead), '-b', 'Linewidth', 2');
+title ({'LEACH'; 'Energy consumed per Transmission'; })
+xlabel 'Transmission';
+ylabel 'Energy ( J )';
 hold on;
 
 figure(7)
-area(1:length(remainingEnergy), remainingEnergy(1:length(remainingEnergy)), 'FaceColor', 'r');
-title ({'COMPARISION'; 'Remaining Energy per Round'; })
-xlabel '# Rounds';
-ylabel 'Remaining Energy (Joule)';
+bar(1:networkStatus, networkLiveData(1:networkStatus));
+title ({'LEACH'; 'Network Status vs Rounds'; })
+xlabel 'Network Status';
+ylabel 'Rounds';
 hold on;
 
 figure(8)
-plot(1:length(abpl), abpl(1:length(abpl)), '-r', 'Linewidth', 2);
-title ({'COMPARISION'; 'Average Backbone Path Length per Round'; })
-xlabel '# Rounds';
-ylabel 'Average Backbone Path Length';
+plot(1:rounds, remainingEnergy(1:rounds), '-b', 'Linewidth', 2');
+title ({'LEACH'; 'Remaining Energy per Round'; })
+xlabel 'Rounds';
+ylabel 'Remaining Energy';
 hold on;
 
-figure(9)
-plot(1:length(lsp), lsp(1:length(lsp)), '-r', 'Linewidth', 2);
-title ({'COMPARISION'; 'Longest Shortest Path Length per Round'; })
-xlabel '# Rounds';
-ylabel 'Longest Shortest Path Length';
-hold on;
-
-function [SN, CL, CLheads] = CH_election_centralized(SN, n, t, tleft, p, rounds, sinkx, sinky, CLheads, Eo, Ecen)
+function [SN, CL, CLheads] = CH_election(SN, n, t, tleft, p, rounds, sinkx, sinky, CLheads, Eo)
     CL = [];
 
     for i = 1:n
@@ -384,8 +398,8 @@ function [SN, CL, CLheads] = CH_election_centralized(SN, n, t, tleft, p, rounds,
         if (SN(i).Energy > 0) && (SN(i).rleft == 0)
             generate = rand;
 
-            if (generate < t && SN(i).Energy >= Eo * 0.2 && SN(i).Energy >= Ecen)
-                SN(i).role = 1; % assigns the node role of acluster head
+            if (generate < t && SN(i).Energy >= Eo * 0.2)
+                SN(i).role = 1; % assigns the node role of a cluster head
                 SN(i).rn = rounds; % Assigns the round that the cluster head was elected to the data table
                 SN(i).tel = SN(i).tel + 1;
                 SN(i).rleft = 1 / p - tleft; % rounds for which the node will be unable to become a CH
@@ -456,12 +470,12 @@ function bool = is_found(proximity, index)
 end
 
 % function to calculate proximity for CHs
-function CH_list = CH_list_with_proximity(CH_list, CLheads, rad, rounds)
+function CH_list = CH_list_with_proximity(CH_list, CHeads, rad, rounds)
 
     CH_list = arrayfun(@(x) setfield(x, 'proximity', []), CH_list);
 
     % assinging the index of sink as 0 to the proximity list of each CH if it is within the communication range
-    for i = 1:CLheads
+    for i = 1:CHeads
 
         if (CH_list(i).dts <= rad)
             CH_list(i).proximity = [CH_list(i).proximity, 0];
@@ -470,9 +484,9 @@ function CH_list = CH_list_with_proximity(CH_list, CLheads, rad, rounds)
     end
 
     % assinging the index of CHs as their proximity list if they are within the communication range
-    for i = 1:CLheads
+    for i = 1:CHeads
 
-        for j = 1:CLheads
+        for j = 1:CHeads
 
             if (i ~= j)
 
@@ -486,7 +500,7 @@ function CH_list = CH_list_with_proximity(CH_list, CLheads, rad, rounds)
 
     end
 
-    for i = 1:CLheads
+    for i = 1:CHeads
         CH_list(i).proximity = sortNodes_dts(CH_list, CH_list(i).proximity);
     end
 
@@ -494,7 +508,7 @@ function CH_list = CH_list_with_proximity(CH_list, CLheads, rad, rounds)
     fid = fopen('proximity.txt', 'a');
     fprintf(fid, '\nRound %d\n', rounds);
 
-    for i = 1:CLheads
+    for i = 1:CHeads
         fprintf(fid, 'Proximity of CH(%d) = [', i);
 
         for j = 1:length(CH_list(i).proximity)
@@ -549,9 +563,9 @@ function [hops, indices] = calculate_hops(CH_list, index, indices, hops, rounds)
 end
 
 % driver function to calculate the number of hops for each CH
-function CH_list = CH_list_with_HOPS(CH_list, CLheads, rad, rounds)
+function CH_list = CH_list_with_HOPS(CH_list, CHeads, rad, rounds)
 
-    CH_list = CH_list_with_proximity(CH_list, CLheads, rad, rounds);
+    CH_list = CH_list_with_proximity(CH_list, CHeads, rad, rounds);
     CH_list = arrayfun(@(x) setfield(x, 'hops', 0), CH_list);
 
     fid = fopen('hops.txt', 'a');
@@ -559,7 +573,7 @@ function CH_list = CH_list_with_HOPS(CH_list, CLheads, rad, rounds)
     totalHops = 0;
 
     % calculating the hops of each CH from the sink
-    for i = 1:CLheads
+    for i = 1:CHeads
 
         % if the CH is directly within the communication range of the sink
         if (is_found(CH_list(i).proximity, 0) == 1)
@@ -581,16 +595,16 @@ function CH_list = CH_list_with_HOPS(CH_list, CLheads, rad, rounds)
 
     end
 
-    fprintf(fid, 'ABPL = %f\n', totalHops / (CLheads * (CLheads + 1) / 2));
+    fprintf(fid, 'ABPL = %f\n', totalHops / (CHeads * (CHeads + 1) / 2));
     fclose(fid);
 
 end
 
 % calculating the Longest Shortest Path for each CH
-function lsp = calculating_lsp(CH_list, CLheads)
+function lsp = calculating_lsp(CH_list, CHeads)
     lsp = -1;
 
-    for i = 1:CLheads
+    for i = 1:CHeads
         CH_list(i).lsp = 0;
 
         if CH_list(i).lsp_path(1) == 0
@@ -612,7 +626,7 @@ function lsp = calculating_lsp(CH_list, CLheads)
 
     end
 
-    for i = 1:CLheads
+    for i = 1:CHeads
         lsp = max(lsp, CH_list(i).lsp);
     end
 

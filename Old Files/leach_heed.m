@@ -25,15 +25,15 @@ n = 100;
 % Number of Dead Nodes in the beggining %
 dead_nodes = 0;
 % Coordinates of the Sink (location is predetermined in this simulation) %
-sinkx = 990;
-sinky = 990;
+sinkx = 300;
+sinky = 300;
 %%% Energy Values %%%
 % Initial Energy of a Node (in Joules) %
 Eo = 0.1; % units in Joules
 % Energy required to run circuity (both for transmitter and receiver) %
 Eelec = 50 * 10 ^ (-9); % units in Joules/bit
-ETx = 50 * 10 ^ (-9); % units in Joules/bit
-ERx = 50 * 10 ^ (-9); % units in Joules/bit
+ETx = 50 * 10 ^ (-9); % units in Joules/bit, can be kept constant or variable
+ERx = 50 * 10 ^ (-9); % units in Joules/bit, can be kept constant or variable
 % Transmit Amplifier Types %
 Eamp = 100 * 10 ^ (-12); % units in Joules/bit/m^2 (amount of energy spent by the amplifier to transmit the bits)
 % Data Aggregation Energy %
@@ -99,10 +99,24 @@ end
 
 CHeads = 0;
 CH_list = [];
-firstRound = 1;
 totalData = 0;
 networkStatus = 1;
 rad = 200;
+
+fid = fopen('node_degree.txt', 'w');
+fclose(fid);
+
+fid = fopen('hops.txt', 'w');
+fclose(fid);
+
+fid = fopen('proximity.txt', 'w');
+fclose(fid);
+
+fid = fopen('debug.txt', 'w');
+fclose(fid);
+
+fid = fopen('diameter.txt', 'w');
+fclose(fid);
 
 %%%%%% Set-Up Phase %%%%%%
 while (operating_nodes > 0 && stop_flag == 0)
@@ -118,18 +132,15 @@ while (operating_nodes > 0 && stop_flag == 0)
     % Reseting Previous Amount Of Energy Consumed In the Network on the Previous Round %
     energy = 0;
 
-    % New list of nodes is sorted on basis of energy %
-    SN = sortNodes_energy(SN, n);
-
     % Cluster Heads Election %
-    [SN, CH_list, CHeads, firstRound] = maxE_minD_selection_new(SN, n, Ci, Eo, CH_list, CHeads, firstRound, operating_nodes);
+    [SN, CH_list, CHeads] = CH_election_HEED(SN, n, p, rounds, CHeads, Eo, CH_list);
 
     if (CHeads ~= 0)
         % Fixing the size of "CL" array %
         CH_list = CH_list(1:CHeads);
         CH_list = arrayfun(@(x) setfield(x, 'degree', 0), CH_list);
 
-        % Grouping the Nodes into Clusters & caclulating the distance between node and cluster head %
+        % Calculating node degree of cluster head based on Distance to cluster members %
         for i = 1:n
 
             if ((SN(i).role == 0) && (SN(i).Energy > 0)) % if node is normal
@@ -145,17 +156,75 @@ while (operating_nodes > 0 && stop_flag == 0)
                 d = d(1:CHeads); % fixing the size of "d" array
                 [M, I] = min(d(:)); % finds the minimum distance of node to CH
                 [Row, Col] = ind2sub(size(d), I); % displays the Cluster Number in which this node belongs too
-                SN(i).cluster = Col; % assigns node to the cluster
-                SN(i).dtch = d(Col); % assigns the distance of node to CH
-                SN(i).chid = CH_list(Col).id;
                 CH_list(Col).degree = CH_list(Col).degree + 1;
+
             end
 
         end
 
+        % adding new field as Cost as a function of node degree to CH_list %
+        CH_list = arrayfun(@(x) setfield(x, 'cost', 0), CH_list);
+
+        for i = 1:CHeads
+
+            if (CH_list(i).degree ~= 0)
+                CH_list(i).cost = 1 / CH_list(i).degree;
+            else
+                CH_list(i).cost = 100;
+            end
+
+            CH_list(i).degree = 0;
+
+        end
+
+        for i = 1:n
+
+            if ((SN(i).role == 0) && (SN(i).Energy > 0)) % if node is normal
+
+                for m = 1:CHeads
+                    c(m) = CH_list(m).cost;
+                    % we calculate the distance 'd' between the sensor node that is
+                    % transmitting and the cluster head that is receiving with the following equation+
+                    % d=sqrt((x2-x1)^2 + (y2-y1)^2) where x2 and y2 the coordinates of
+                    % the cluster head and x1 and y1 the coordinates of the transmitting node
+                end
+
+                c = c(1:CHeads); % fixing the size of "d" array
+                [M, I] = min(c(:)); % finds the minimum distance of node to CH
+                [Row, Col] = ind2sub(size(c), I); % displays the Cluster Number in which this node belongs too
+                SN(i).cluster = Col; % assigns node to the cluster
+                SN(i).dtch = d(Col); % assigns the distance of node to CH
+                SN(i).chid = CH_list(Col).id;
+                CH_list(Col).degree = CH_list(Col).degree + 1;
+
+            end
+
+        end
+
+        % printing the degree of each CH %
+        fid = fopen('node_degree.txt', 'a');
+        fprintf(fid, '\nRound %d\n', rounds);
+
+        for i = 1:CHeads
+
+            if CH_list(i).degree < operating_nodes * 0.03
+                fprintf(fid, 'Degree of CH(%d) = %d (node degree below threshold)\n', i, CH_list(i).degree);
+            else
+                fprintf(fid, 'Degree of CH(%d) = %d\n', i, CH_list(i).degree);
+            end
+
+        end
+
+        fclose(fid);
+
         % calculating HOPS and Proximity %
         CH_list = CH_list_with_HOPS(CH_list, CHeads, rad, rounds);
         Network_Longest_Shortest_Path = calculating_lsp(CH_list, CHeads);
+        
+        % printing the Diameter of each CH %
+        fid = fopen('diameter.txt', 'a');
+        fprintf(fid, '\nRound = %d, C-Heads = %d, Diamter = %d\n\n', rounds, CHeads, Network_Longest_Shortest_Path);
+        fclose(fid);
 
         %%%%%% Steady-State Phase %%%%%%
         % Energy Dissipation for normal nodes %
@@ -227,7 +296,6 @@ while (operating_nodes > 0 && stop_flag == 0)
 
     end
 
-    % Obtaining network status %
     if operating_nodes < n && temp_val == 0
         temp_val = 1;
         flagFirstDead = rounds
@@ -243,12 +311,13 @@ while (operating_nodes > 0 && stop_flag == 0)
 
     transmissions = transmissions + 1;
 
-    if CHeads == 0 || operating_nodes < 3
+    if CHeads == 0
         transmissions = transmissions - 1;
         stop_flag = 1;
         networkLiveData(networkStatus) = rounds;
     end
 
+    % tr(transmissions) = operating_nodes;
     opNodes(rounds) = operating_nodes;
     dNodes(rounds) = dead_nodes;
     cNodes(rounds) = CHeads;
@@ -260,8 +329,63 @@ while (operating_nodes > 0 && stop_flag == 0)
 
 end
 
-% sorting nodes based on energy
-function S = sortNodes_energy(S, Ni)
+sum = 0;
+
+for i = 1:flagFirstDead
+    sum = nrg(i) + sum;
+end
+
+% Plotting Simulation Results "Operating Nodes per Round" %
+figure(2)
+plot(1:rounds, opNodes(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH HEED'; 'Operating Nodes per Round'; })
+xlabel 'Rounds';
+ylabel 'Operational Nodes';
+hold on;
+
+figure(3)
+plot(1:rounds, dNodes(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH HEED'; 'Dead Nodes per Round'; })
+xlabel 'Rounds';
+ylabel 'Dead Nodes';
+hold on;
+
+figure(4)
+plot(1:rounds, cNodes(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH HEED'; 'Clusters per Round'; })
+xlabel 'Rounds';
+ylabel 'Clusters';
+hold on;
+
+figure(5)
+plot(1:rounds, threshData(1:rounds), '-b', 'Linewidth', 2);
+title ({'LEACH HEED'; 'Threshold Data per Round'; })
+xlabel 'Rounds';
+ylabel 'Threshold Data';
+hold on;
+
+figure(6)
+plot(1:flagFirstDead, nrg(1:flagFirstDead), '-b', 'Linewidth', 2');
+title ({'LEACH HEED'; 'Energy consumed per Transmission'; })
+xlabel 'Transmission';
+ylabel 'Energy ( J )';
+hold on;
+
+figure(7)
+bar(1:networkStatus, networkLiveData(1:networkStatus));
+title ({'LEACH HEED'; 'Network Status vs Rounds'; })
+xlabel 'Network Status';
+ylabel 'Rounds';
+hold on;
+
+figure(8)
+plot(1:rounds, remainingEnergy(1:rounds), '-b', 'Linewidth', 2');
+title ({'LEACH HEED'; 'Remaining Energy per Round'; })
+xlabel 'Rounds';
+ylabel 'Remaining Energy';
+hold on;
+
+function S = sortNodes_prob(S, Ni)
 
     for i = 1:Ni
 
@@ -273,7 +397,7 @@ function S = sortNodes_energy(S, Ni)
                 break;
             end
 
-            if S(i).Energy > S(j).Energy
+            if S(i).prob > S(j).prob
                 temp = S(i);
                 S(i) = S(j);
                 S(j) = temp;
@@ -285,139 +409,59 @@ function S = sortNodes_energy(S, Ni)
 
 end
 
-% using our algorithm to assign cluster heads
-function [S, CH_list, CHeads, firstRound] = maxE_minD_selection_new(S, Ni, Ci, Eo, CH_list, CHeads, firstRound, operating_nodes)
+function [SN, CH_list, CHeads] = CH_election_HEED(SN, n, p, rounds, CHeads, Eo, CH_list)
 
-    if (firstRound == 1)
-        CH_list = [];
-        CHeads = 0;
+    CHeads = 0;
 
-        for k = 1:Ci
-            S(k).cluster = 0;
-            S(k).role = 0;
-            S(k).chid = 0;
-            index = -1;
-            count = 0;
-            minD = 10 ^ 10;
-            maxE = -1;
+    for i = 1:n
+        mult_factor = SN(i).Energy / Eo;
+        SN(i).prob = SN(i).prob * mult_factor;
+    end
 
-            % selecting cluster heads based on max energy and min distance
-            for i = 1:Ni
+    SN = sortNodes_prob(SN, n);
 
-                if (S(i).role == 1 || S(i).condition == 0)
-                    continue;
-                end
+    for i = 1:n
+        SN(i).cluster = 0; % reseting cluster in which the node belongs to
+        SN(i).role = 0; % reseting node role
+        SN(i).chid = 0; % reseting cluster head id
 
-                distance = 0;
+        if (SN(i).condition == 1 && SN(i).Energy >= Eo * 0.2) % if node is alive and operational
 
-                for j = 1:Ni
-
-                    if (S(j).condition == 0)
-                        continue;
-                    end
-
-                    if (i ~= j)
-                        distance = distance + sqrt((S(i).x - S(j).x) ^ 2 + (S(i).y - S(j).y) ^ 2);
-                        count = count + 1;
-                    end
-
-                end
-
-                if ((distance / count) <= minD && (S(i).Energy >= maxE) && (S(i).Energy >= Eo * 0.2))
-                    minD = distance;
-                    maxE = S(i).Energy;
-                    index = i;
-                end
-
-            end
-
-            if (index ~= -1)
-                S(index).role = 1; % 1 = cluster head
-                S(index).tel = S(index).tel + 1; % total number of times it became cluster head
-                CHeads = CHeads + 1;
-                S(index).cluster = CHeads; % cluster number this node belongs to
-                CH_list(CHeads).id = S(index).id;
-                CH_list(CHeads).x = S(index).x;
-                CH_list(CHeads).y = S(index).y;
-                CH_list(CHeads).dts = S(index).dts;
-            end
-
-        end
-
-        firstRound
-        firstRound = firstRound + 1;
-
-    else
-        temp_CH_list = [];
-        temp_CHeads = 0;
-
-        for k = 1:CHeads
-
-            if (S(CH_list(k).id).Energy < Eo * 0.2 || CH_list(k).degree < operating_nodes * 0.03)
-
-                S(CH_list(k).id).role = 0;
-                index = -1;
-                count = 0;
-                minD = 10 ^ 10;
-                maxE = -1;
-
-                for i = 1:Ni
-
-                    if (S(i).role == 1 || S(i).condition == 0 || CH_list(k).id == i)
-                        continue;
-                    end
-
-                    distance = 0;
-
-                    for j = 1:Ni
-
-                        if (S(j).condition == 0)
-                            continue;
-                        end
-
-                        if (i ~= j)
-                            distance = distance + sqrt((S(i).x - S(j).x) ^ 2 + (S(i).y - S(j).y) ^ 2);
-                            count = count + 1;
-                        end
-
-                    end
-
-                    if ((distance / count) <= minD && (S(i).Energy >= maxE) && (S(i).Energy >= Eo * 0.2))
-                        minD = distance;
-                        maxE = S(i).Energy;
-                        index = i;
-                    end
-
-                end
-
-                if (index ~= -1)
-                    S(index).role = 1; % 1 = cluster head
-                    S(index).tel = S(index).tel + 1; % total number of times it became cluster head
-                    S(index).cluster = k; % cluster number this node belongs to
-                    CH_list(k).id = S(index).id;
-                    CH_list(k).x = S(index).x;
-                    CH_list(k).y = S(index).y;
-                    CH_list(k).dts = S(index).dts;
-
-                    temp_CHeads = temp_CHeads + 1;
-                    temp_CH_list(temp_CHeads).id = CH_list(k).id;
-                    temp_CH_list(temp_CHeads).x = CH_list(k).x;
-                    temp_CH_list(temp_CHeads).y = CH_list(k).y;
-                    temp_CH_list(temp_CHeads).dts = CH_list(k).dts;
-                end
+            if (SN(i).prob == 1) % case when its sure to become a cluster head
+                SN(i).role = 1; % assigns the node role of acluster head
+                SN(i).rn = rounds; % Assigns the round that the cluster head was elected to the data table
+                SN(i).tel = SN(i).tel + 1; % Assigns the number of times the cluster head was elected to the data table
+                CHeads = CHeads + 1; % sum of cluster heads that have been elected
+                SN(i).cluster = CHeads; % cluster of which the node got elected to be cluster head
+                CH_list(CHeads).x = SN(i).x; % X-axis coordinates of elected cluster head
+                CH_list(CHeads).y = SN(i).y; % Y-axis coordinates of elected cluster head
+                CH_list(CHeads).id = i; % Assigns the node ID of the newly elected cluster head to an array
+                CH_list(CHeads).dts = SN(i).dts;
 
             else
-                temp_CHeads = temp_CHeads + 1;
-                temp_CH_list(temp_CHeads).id = CH_list(k).id;
-                temp_CH_list(temp_CHeads).x = CH_list(k).x;
-                temp_CH_list(temp_CHeads).y = CH_list(k).y;
-                temp_CH_list(temp_CHeads).dts = CH_list(k).dts;
+                rand = randi([0, 1], 1, 1); % generates a random number between 0 and 1
+
+                if (rand < SN(i).prob) % if the random number is less than the probability of becoming a cluster head
+                    SN(i).role = 1; % assigns the node role of acluster head
+                    SN(i).rn = rounds; % Assigns the round that the cluster head was elected to the data table
+                    SN(i).tel = SN(i).tel + 1; % Assigns the number of times the cluster head was elected to the data table
+                    SN(i).prob = min(SN(i).prob * 2, 1); % Assigns the probability of becoming a cluster head to the data table
+                    CHeads = CHeads + 1; % sum of cluster heads that have been elected
+                    SN(i).cluster = CHeads; % cluster of which the node got elected to be cluster head
+                    CH_list(CHeads).x = SN(i).x; % X-axis coordinates of elected cluster head
+                    CH_list(CHeads).y = SN(i).y; % Y-axis coordinates of elected cluster head
+                    CH_list(CHeads).id = i; % Assigns the node ID of the newly elected cluster head to an array
+                    CH_list(CHeads).dts = SN(i).dts;
+                end
+
             end
 
         end
 
-        CH_list = temp_CH_list;
-        CHeads = temp_CHeads;
+        if (CHeads == n * p)
+            break;
+        end
+
     end
 
 end
@@ -600,7 +644,6 @@ function CH_list = CH_list_with_HOPS(CH_list, CHeads, rad, rounds)
 
 end
 
-% calculating the Longest Shortest Path for each CH
 function lsp = calculating_lsp(CH_list, CHeads)
     lsp = -1;
 
