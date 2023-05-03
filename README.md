@@ -15,10 +15,10 @@ There are three types of MATLAB files provided in the repository:
 
 ### Prerequisites (Software)
 
-* [MATLAB](https://www.mathworks.com/products/matlab.html) - The software used
+* [MATLAB](https://www.mathworks.com/products/matlab.html) - The Software used for Simulation
 
-
-Rishabh Barnwal
+### About me
+Rishabh Barnwal <br/>
 Birla Institute of Technology and Science Pilani, Pilani Campus
 
 
